@@ -10,8 +10,8 @@ declare(strict_types=1);
 namespace OpenSwoole\GRPC;
 
 use co;
-use OpenSwoole\Coroutine;
-use OpenSwoole\Coroutine\Channel;
+use Swoole\Coroutine;
+use Swoole\Coroutine\Channel;
 
 class ClientPool
 {

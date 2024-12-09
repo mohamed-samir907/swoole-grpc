@@ -11,7 +11,6 @@ namespace OpenSwoole\GRPC;
 
 use Exception;
 use OpenSwoole\GRPC\Exception\InvokeException;
-use OpenSwoole\Util;
 use ReflectionClass;
 use ReflectionException;
 use ReflectionMethod;
@@ -35,13 +34,13 @@ final class ServiceContainer
             $reflection = new ReflectionClass($interface);
 
             if (!$reflection->hasConstant('NAME')) {
-                Util::log(\OpenSwoole\Constant::LOG_ERROR, "Can't find NAME of the service: {$interface}");
+                \swoole_error_log(\Swoole\Constant::LOG_ERROR, "Can't find NAME of the service: {$interface}");
             }
 
             $name = $reflection->getConstant('NAME');
 
             if (!is_string($name)) {
-                Util::log(\OpenSwoole\Constant::LOG_ERROR, "Can't find NAME of the service: {$interface}");
+                \swoole_error_log(\Swoole\Constant::LOG_ERROR, "Can't find NAME of the service: {$interface}");
             }
 
             $this->name = $name;

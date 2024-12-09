@@ -15,7 +15,6 @@ use OpenSwoole\GRPC\Exception\InvokeException;
 use OpenSwoole\GRPC\Middleware\MiddlewareInterface;
 use OpenSwoole\GRPC\Middleware\ServiceHandler;
 use OpenSwoole\GRPC\Middleware\StackHandler;
-use OpenSwoole\Util;
 use Throwable;
 use TypeError;
 
@@ -33,8 +32,8 @@ final class Server
      * @psalm-suppress UndefinedClass
      */
     private array $settings = [
-        \OpenSwoole\Constant::OPTION_OPEN_HTTP2_PROTOCOL => 1,
-        \OpenSwoole\Constant::OPTION_ENABLE_COROUTINE    => true,
+        \Swoole\Constant::OPTION_OPEN_HTTP2_PROTOCOL => 1,
+        \Swoole\Constant::OPTION_ENABLE_COROUTINE    => true,
     ];
 
     private array $services = [];
@@ -47,15 +46,15 @@ final class Server
 
     private $workerContext;
 
-    public function __construct(string $host, int $port = 0, int $mode = \OpenSwoole\Server::SIMPLE_MODE, int $sockType = \OpenSwoole\Constant::SOCK_TCP)
+    public function __construct(string $host, int $port = 0, int $mode = \SWOOLE_BASE, int $sockType = \SWOOLE_SOCK_TCP)
     {
         $this->host     = $host;
         $this->port     = $port;
         $this->mode     = $mode;
         $this->sockType = $sockType;
-        $server         = new \OpenSwoole\HTTP\Server($this->host, $this->port, $this->mode, $this->sockType);
+        $server         = new \Swoole\HTTP\Server($this->host, $this->port, $this->mode, $this->sockType);
         $server->on('start', function () {
-            Util::LOG(\OpenSwoole\Constant::LOG_INFO, sprintf("\033[32m%s\033[0m", "OpenSwoole GRPC Server is started grpc://{$this->host}:{$this->port}"));
+            \swoole_error_log(\Swoole\Constant::LOG_INFO, sprintf("\033[32m%s\033[0m", "Swoole gRPC Server is started grpc://{$this->host}:{$this->port}"));
         });
         $this->server   = $server;
 
@@ -86,16 +85,16 @@ final class Server
     public function start()
     {
         $this->server->set($this->settings);
-        $this->server->on('workerStart', function (\OpenSwoole\Server $server, int $workerId) {
+        $this->server->on('workerStart', function (\Swoole\Server $server, int $workerId) {
             $this->workerContext = new Context([
-                Server::class                               => $this,
-                \OpenSwoole\HTTP\Server::class              => $this->server,
+                Server::class               => $this,
+                \Swoole\HTTP\Server::class  => $this->server,
             ]);
             foreach ($this->workerContexts as $context => $callback) {
                 $this->workerContext = $this->workerContext->withValue($context, $callback->call($this));
             }
         });
-        $this->server->on('request', function (\OpenSwoole\HTTP\Request $request, \OpenSwoole\HTTP\Response $response) {
+        $this->server->on('request', function (\Swoole\HTTP\Request $request, \Swoole\HTTP\Response $response) {
             $this->process($request, $response);
         });
         $this->server->start();
@@ -124,13 +123,13 @@ final class Server
         return $this;
     }
 
-    public function process(\OpenSwoole\HTTP\Request $rawRequest, \OpenSwoole\HTTP\Response $rawResponse)
+    public function process(\Swoole\HTTP\Request $rawRequest, \Swoole\HTTP\Response $rawResponse)
     {
         $context = new Context([
             'WORKER_CONTEXT'                            => $this->workerContext,
             'SERVICES'                                  => $this->services,
-            \OpenSwoole\Http\Request::class             => $rawRequest,
-            \OpenSwoole\Http\Response::class            => $rawResponse,
+            \Swoole\Http\Request::class                 => $rawRequest,
+            \Swoole\Http\Response::class                => $rawResponse,
             Constant::CONTENT_TYPE                      => $rawRequest->header[Constant::CONTENT_TYPE] ?? '',
             Constant::GRPC_STATUS                       => Status::UNKNOWN,
             Constant::GRPC_MESSAGE                      => '',
@@ -146,11 +145,16 @@ final class Server
 
             $response = $this->handler->handle($request);
         } catch (GRPCException $e) {
-            Util::log(\OpenSwoole\Constant::LOG_ERROR, $e->getMessage() . ', error code: ' . $e->getCode() . "\n" . $e->getTraceAsString());
+            \swoole_error_log(\Swoole\Constant::LOG_ERROR, $e->getMessage() . ', error code: ' . $e->getCode() . "\n" . $e->getTraceAsString());
             $output          = '';
             $context         = $context->withValue(Constant::GRPC_STATUS, $e->getCode());
             $context         = $context->withValue(Constant::GRPC_MESSAGE, $e->getMessage());
             $response        = new Response($context, $output);
+        } catch (\Swoole\Exception $e) {
+            \swoole_error_log(\Swoole\Constant::LOG_WARNING, $e->getMessage() . ', error code: ' . $e->getCode() . "\n" . $e->getTraceAsString());
+            $output          = '';
+            $context         = $context->withValue(Constant::GRPC_STATUS, $e->getCode());
+            $context         = $context->withValue(Constant::GRPC_MESSAGE, $e->getMessage());
         }
 
         $this->send($response);
@@ -171,17 +175,17 @@ final class Server
 
         $payload = pack('CN', 0, strlen($payload)) . $payload;
 
-        $ret = $context->getValue(\OpenSwoole\Http\Response::class)->write($payload);
+        $ret = $context->getValue(\Swoole\Http\Response::class)->write($payload);
         if (!$ret) {
-            throw new \OpenSwoole\Exception('Client side is disconnected');
+            throw new \Swoole\Exception('Client side is disconnected');
         }
         return $ret;
     }
 
-    private function validateRequest(\OpenSwoole\HTTP\Request $request)
+    private function validateRequest(\Swoole\HTTP\Request $request)
     {
         if (!isset($request->header['content-type']) || !isset($request->header['te'])) {
-            throw InvokeException::create('illegal GRPC request, missing content-type or te header');
+            throw InvokeException::create('illegal Grpc request, missing content-type or te header');
         }
 
         if ($request->header['content-type'] !== 'application/grpc'
@@ -195,7 +199,7 @@ final class Server
     private function send(Response $response)
     {
         $context     = $response->getContext();
-        $rawResponse = $context->getValue(\OpenSwoole\Http\Response::class);
+        $rawResponse = $context->getValue(\Swoole\Http\Response::class);
         $headers     = [
             'content-type' => $context->getValue('content-type'),
             'trailer'      => 'grpc-status, grpc-message',
@@ -217,8 +221,8 @@ final class Server
                 $rawResponse->trailer($name, (string) $value);
             }
             $rawResponse->end($payload);
-        } catch (\OpenSwoole\Exception $e) {
-            Util::log(\OpenSwoole\Constant::LOG_WARNING, $e->getMessage() . ', error code: ' . $e->getCode() . "\n" . $e->getTraceAsString());
+        } catch (\Swoole\Exception $e) {
+            \swoole_error_log(\Swoole\Constant::LOG_WARNING, $e->getMessage() . ', error code: ' . $e->getCode() . "\n" . $e->getTraceAsString());
         }
     }
 }

@@ -9,11 +9,7 @@ declare(strict_types=1);
 
 namespace OpenSwoole\GRPC;
 
-use OpenSwoole\Coroutine;
 use OpenSwoole\GRPC\Exception\ClientException;
-use OpenSwoole\Util;
-
-use const OPENSWOOLE_VERSION;
 
 class Client implements ClientInterface
 {
@@ -36,7 +32,7 @@ class Client implements ClientInterface
 
     public function __construct($host, $port, $mode = Constant::GRPC_CALL)
     {
-        $client = new Coroutine\Http2\Client($host, $port);
+        $client = new \Swoole\Coroutine\Http2\Client($host, $port);
         // TODO: clientInterceptors
         $this->client  = $client;
         $this->streams = [];
@@ -57,10 +53,10 @@ class Client implements ClientInterface
     {
         $this->client->set($this->settings);
         if (!$this->client->connect()) {
-            throw new ClientException(Util::getErrorMessage($this->client->errCode, 9) . " {$this->client->host}:{$this->client->port}", $this->client->errCode);
+            throw new ClientException(\swoole_strerror($this->client->errCode, 9) . " {$this->client->host}:{$this->client->port}", $this->client->errCode);
         }
 
-        Coroutine::create(function () {
+        \Swoole\Coroutine::create(function () {
             while (!$this->closed && [$streamId, $data, $pipeline, $trailers] = $this->recvData()) {
                 if ($streamId > 0 && !$pipeline) {
                     $this->streams[$streamId][0]->push([$data, $trailers]);
@@ -101,13 +97,13 @@ class Client implements ClientInterface
         while ($retry++ < $this->settings['max_retries']) {
             $streamId = $this->sendMessage($method, $message, $type);
             if ($streamId && $streamId > 0) {
-                $this->streams[$streamId] = [new Coroutine\Channel(1), $isEndStream];
+                $this->streams[$streamId] = [new \Swoole\Coroutine\Channel(1), $isEndStream];
                 return $streamId;
             }
             if ($this->client->errCode > 0) {
-                throw new ClientException(Util::getErrorMessage($this->client->errCode, 9) . " {$this->client->host}:{$this->client->port}", $this->client->errCode);
+                throw new ClientException(\swoole_strerror($this->client->errCode, 9) . " {$this->client->host}:{$this->client->port}", $this->client->errCode);
             }
-            Coroutine::usleep(10000);
+            \Swoole\Coroutine::usleep(10000);
         }
         return false;
     }
@@ -137,12 +133,12 @@ class Client implements ClientInterface
 
     private function sendMessage($method, $message, $type)
     {
-        $request           = new \OpenSwoole\Http2\Request();
+        $request           = new \Swoole\Http2\Request();
         $request->pipeline = false;
         $request->method   = 'POST';
         $request->path     = $method;
         $request->headers  = [
-            'user-agent'     => 'grpc-openswoole/' . OPENSWOOLE_VERSION,
+            'user-agent'     => 'grpc-swoole/' . \SWOOLE_VERSION,
             'content-type'   => 'application/grpc+' . $type,
             'te'             => 'trailers',
         ];
@@ -166,9 +162,9 @@ class Client implements ClientInterface
 
         if (!$response) {
             if ($this->client->errCode > 0) {
-                // throw new ClientException(Util::getErrorMessage($this->client->errCode, 9) . " {$this->client->host}:{$this->client->port}", $this->client->errCode);
+                // throw new ClientException(\swoole_strerror($this->client->errCode, 9) . " {$this->client->host}:{$this->client->port}", $this->client->errCode);
             }
-            Coroutine::sleep(1);
+            \Swoole\Coroutine::sleep(1);
             return [0, null, false, null];
         }
 

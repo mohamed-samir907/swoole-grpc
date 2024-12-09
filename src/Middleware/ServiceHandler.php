@@ -17,7 +17,6 @@ use OpenSwoole\GRPC\MessageInterface;
 use OpenSwoole\GRPC\RequestHandlerInterface;
 use OpenSwoole\GRPC\Response;
 use OpenSwoole\GRPC\Status;
-use OpenSwoole\Util;
 use Throwable;
 
 class ServiceHandler implements MiddlewareInterface
@@ -36,12 +35,12 @@ class ServiceHandler implements MiddlewareInterface
 
             $context = $context->withValue(Constant::GRPC_STATUS, Status::OK);
         } catch (GRPCException $e) {
-            Util::log(\OpenSwoole\Constant::LOG_ERROR, $e->getMessage() . ', error code: ' . $e->getCode() . "\n" . $e->getTraceAsString());
+            \swoole_error_log(\Swoole\Constant::LOG_ERROR, $e->getMessage() . ', error code: ' . $e->getCode() . "\n" . $e->getTraceAsString());
             $output          = '';
             $context         = $context->withValue(Constant::GRPC_STATUS, $e->getCode());
             $context         = $context->withValue(Constant::GRPC_MESSAGE, $e->getMessage());
-        } catch (\OpenSwoole\Exception $e) {
-            Util::log(\OpenSwoole\Constant::LOG_WARNING, $e->getMessage() . ', error code: ' . $e->getCode() . "\n" . $e->getTraceAsString());
+        } catch (\Swoole\Exception $e) {
+            \swoole_error_log(\Swoole\Constant::LOG_WARNING, $e->getMessage() . ', error code: ' . $e->getCode() . "\n" . $e->getTraceAsString());
             $output          = '';
             $context         = $context->withValue(Constant::GRPC_STATUS, $e->getCode());
             $context         = $context->withValue(Constant::GRPC_MESSAGE, $e->getMessage());
