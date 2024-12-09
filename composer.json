@@ -1,6 +1,6 @@
 {
-    "name": "openswoole/grpc",
-    "description": "OpenSwoole GRPC framework for building high performance services",
+    "name": "mosamirzz/swoole-grpc",
+    "description": "Swoole GRPC framework for building high performance services",
     "type": "library",
     "license": "Apache-2.0",
     "authors": [
