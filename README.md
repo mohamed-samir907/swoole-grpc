@@ -9,7 +9,7 @@ OpenSwoole GRPC is an open-source high-performance GRPC solution for PHP includi
 You can add this package to your project using [Composer](https://getcomposer.org):
 
 ```bash
-composer require openswoole/grpc
+composer require mosamirzz/swoole-grpc
 ```
 
 ## Features
